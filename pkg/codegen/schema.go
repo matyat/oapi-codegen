@@ -76,6 +76,24 @@ type Property struct {
 type XmlProps struct {
 	Name      string
 	Attribute bool
+
+	// When a value should be rendered as cdata in xml, this is a bit of fudge
+	// to allow specification of plain xml fields with attributes by adding
+	// properties to a non-object type e.g.
+	// ...
+	// field:
+	//   type: string
+	//   properties:
+	//     attribute:
+	//       type: string
+	//       xml:
+	//         attribute: true
+	// ...
+	// becomes:
+	// <field attribute=somevalue/>text</field>
+	//
+	// Whether this is legal OpenAPI is, well, questionable.
+	Cdata bool
 }
 
 func (p Property) GoFieldName() string {
@@ -213,7 +231,7 @@ func GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
 	// Schema type and format, eg. string / binary
 	t := schema.Type
 	// Handle objects and empty schemas first as a special case
-	if t == "" || t == "object" {
+	if t == "" || t == "object" || len(schema.Properties) > 0 {
 		var outType string
 
 		if len(schema.Properties) == 0 && !SchemaHasAdditionalProperties(schema) {
@@ -230,6 +248,15 @@ func GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
 			}
 			outSchema.GoType = outType
 		} else {
+			if t != "object" && t != "" {
+				valueProp, err := newValueProperty(schema)
+				if err != nil {
+					return Schema{}, err
+				}
+
+				outSchema.Properties = append(outSchema.Properties, valueProp)
+			}
+
 			// We've got an object with some properties.
 			for _, pName := range SortedSchemaKeys(schema.Properties) {
 				p := schema.Properties[pName]
@@ -462,6 +489,10 @@ func GenFieldsFromProperties(props []Property) []string {
 			if p.XmlProps.Attribute {
 				fieldTags["xml"] += ",attr"
 			}
+			if p.XmlProps.Cdata {
+				// Intentionally disregard other xml properties if it is cdata
+				fieldTags["xml"] = ",cdata"
+			}
 		} else {
 			fieldTags["xml"] = p.JsonFieldName
 		}
@@ -681,4 +712,27 @@ func appendXMLNameField(objectParts []string, schema Schema) []string {
 	}
 	xmlNameField := fmt.Sprintf("XMLName xml.Name `json:\"-\" xml:\"%s\"`", schema.XmlProps.Name)
 	return append(objectParts, xmlNameField)
+}
+
+func newValueProperty(schema *openapi3.Schema) (Property, error) {
+	valueSchema := Schema{}
+
+	err := resolveType(schema, nil, &valueSchema)
+	if err != nil {
+		return Property{}, fmt.Errorf("error resolving primitive type: %w", err)
+	}
+
+	return Property{
+		JsonFieldName: "Value",
+		Schema:        valueSchema,
+		Required:      true,
+		Description:   schema.Description,
+		Nullable:      false,
+		XmlProps: &XmlProps{
+			Name:      "",
+			Attribute: false,
+			Cdata:     true,
+		},
+		ExtensionProps: &schema.ExtensionProps,
+	}, nil
 }
