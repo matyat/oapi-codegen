@@ -480,28 +480,28 @@ func GenFieldsFromProperties(props []Property) []string {
 
 		fieldTags := make(map[string]string)
 
+		fieldTags["json"] = p.JsonFieldName
+		fieldTags["xml"] = p.JsonFieldName
+
 		if p.XmlProps != nil {
 			if p.XmlProps.Name != "" {
 				fieldTags["xml"] = p.XmlProps.Name
-			} else {
-				fieldTags["xml"] = p.JsonFieldName
 			}
 			if p.XmlProps.Attribute {
 				fieldTags["xml"] += ",attr"
 			}
-			if p.XmlProps.Cdata {
-				// Intentionally disregard other xml properties if it is cdata
-				fieldTags["xml"] = ",cdata"
-			}
-		} else {
-			fieldTags["xml"] = p.JsonFieldName
 		}
 
-		if p.Required || p.Nullable || !omitEmpty {
-			fieldTags["json"] = p.JsonFieldName
-		} else {
-			fieldTags["json"] = p.JsonFieldName + ",omitempty"
+		if !p.Required && !p.Nullable && omitEmpty {
+			fieldTags["json"] +=  ",omitempty"
+			fieldTags["xml"] += ",omitempty"
 		}
+
+		if p.XmlProps != nil && p.XmlProps.Cdata {
+			// Intentionally disregard other xml properties if it is cdata
+			fieldTags["xml"] = ",cdata"
+		}
+
 		if extension, ok := p.ExtensionProps.Extensions[extPropExtraTags]; ok {
 			if tags, err := extExtraTags(extension); err == nil {
 				keys := SortedStringKeys(tags)
