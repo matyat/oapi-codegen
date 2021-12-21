@@ -77,7 +77,7 @@ type XmlProps struct {
 	Name      string
 	Attribute bool
 
-	// When a value should be rendered as cdata in xml, this is a bit of fudge
+	// When a value should be rendered as chardata in xml, this is a bit of fudge
 	// to allow specification of plain xml fields with attributes by adding
 	// properties to a non-object type e.g.
 	// ...
@@ -93,7 +93,7 @@ type XmlProps struct {
 	// <field attribute=somevalue/>text</field>
 	//
 	// Whether this is legal OpenAPI is, well, questionable.
-	Cdata bool
+	CharData bool
 }
 
 func (p Property) GoFieldName() string {
@@ -493,13 +493,13 @@ func GenFieldsFromProperties(props []Property) []string {
 		}
 
 		if !p.Required && !p.Nullable && omitEmpty {
-			fieldTags["json"] +=  ",omitempty"
+			fieldTags["json"] += ",omitempty"
 			fieldTags["xml"] += ",omitempty"
 		}
 
-		if p.XmlProps != nil && p.XmlProps.Cdata {
-			// Intentionally disregard other xml properties if it is cdata
-			fieldTags["xml"] = ",cdata"
+		if p.XmlProps != nil && p.XmlProps.CharData {
+			// Intentionally disregard other xml properties if it is chardata
+			fieldTags["xml"] = ",chardata"
 		}
 
 		if extension, ok := p.ExtensionProps.Extensions[extPropExtraTags]; ok {
@@ -731,7 +731,7 @@ func newValueProperty(schema *openapi3.Schema) (Property, error) {
 		XmlProps: &XmlProps{
 			Name:      "",
 			Attribute: false,
-			Cdata:     true,
+			CharData:  true,
 		},
 		ExtensionProps: &schema.ExtensionProps,
 	}, nil
